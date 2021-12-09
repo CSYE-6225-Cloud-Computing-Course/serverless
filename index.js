@@ -4,40 +4,42 @@ const dynamo = new AWS.DynamoDB.DocumentClient();
 
 AWS.config.update({ region: "us-east-1" });
 
-exports.userSignupLamda = async function (event, context, callback) {
-  let DynamoDB_client = new aws.DynamoDB({ apiVersion: "2012-08-10" });
+exports.handler = function (event, context, callback) {
+  let DynamoDB_client = new AWS.DynamoDB({ apiVersion: "2012-08-10" });
   let token_id;
-  let baseLink = "http://prod.swaroopgupta.me/v1/verifyUserEmail?email=";
+  let baseLink = "https://prod.swaroopgupta.me/v1/verifyUserEmail?email=";
   let queryParams = {
-    TableName: "dynamo",
+    TableName: "DynamoDB-terraform",
     Key: {
-      id: { S: event.Records[0].Sns.Message },
+      userid: { S: event.Records[0].Sns.Message },
     },
   };
 
   DynamoDB_client.getItem(queryParams, (error, data) => {
     if (error) {
-      console.log(error);
+      console.log("Error in fetching token :", error);
     } else {
       token_id = Object.values(data.Item.token)[0];
       console.log("Token : ", token_id);
 
       var email_template_lambda = {
         Destination: {
-          ToAddresses: event.Records[0].Sns.Message,
+          ToAddresses: [event.Records[0].Sns.Message],
         },
         Message: {
           Body: {
-            Text: {
-              Charset: "UTF-8",
+            Html: {
               Data:
                 "Hi " +
-                // msg.username +
                 "\n Click following link to verify your account and complete sign up process: \n" +
                 baseLink +
                 event.Records[0].Sns.Message +
                 "&token=" +
                 token_id,
+            },
+            Text: {
+              Charset: "UTF-8",
+              Data: "TEXT_FORMAT_BODY",
             },
           },
           Subject: {
@@ -45,7 +47,7 @@ exports.userSignupLamda = async function (event, context, callback) {
             Data: "Verify account to complete sign up process",
           },
         },
-        Sources: "no-reply@prod.swaroopgupta.me",
+        Source: "validation@prod.swaroopgupta.me",
       };
 
       var sendEmailPromise = new AWS.SES({
